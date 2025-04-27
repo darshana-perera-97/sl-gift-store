@@ -1,6 +1,5 @@
-// SuperAdminLogin.js
 import "bootstrap/dist/css/bootstrap.min.css";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Container,
   Row,
@@ -8,8 +7,7 @@ import {
   Form,
   Button,
   Alert,
-  ButtonGroup,
-  ToggleButton,
+  Card,
 } from "react-bootstrap";
 
 function SuperAdminLogin() {
@@ -21,10 +19,15 @@ function SuperAdminLogin() {
   const [loginError, setLoginError] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
 
-  // --- Store‐adding state ---
+  // --- Stores list ---
+  const [stores, setStores] = useState([]);
+  const [storesError, setStoresError] = useState("");
+
+  // --- Store-adding state ---
   const [storeData, setStoreData] = useState({
     name: "",
     description: "",
+    email: "",
     categories: [],
     password: "",
   });
@@ -38,13 +41,11 @@ function SuperAdminLogin() {
     { value: "home", label: "Home & Living" },
   ];
 
-  // Login field change
+  // — Login handlers —
   const handleChange = (e) => {
     setCredentials({ ...credentials, [e.target.name]: e.target.value });
     setLoginError("");
   };
-
-  // Login submit
   const handleSubmit = (e) => {
     e.preventDefault();
     const { username, password } = credentials;
@@ -56,15 +57,30 @@ function SuperAdminLogin() {
     }
   };
 
-  // Store form change (name, desc, password)
+  // — Fetch stores —
+  const fetchStores = async () => {
+    try {
+      const res = await fetch("http://localhost:3020/stores");
+      if (!res.ok) throw new Error(`Status ${res.status}`);
+      const data = await res.json();
+      setStores(data);
+      setStoresError("");
+    } catch (err) {
+      console.error("Failed to fetch stores:", err);
+      setStoresError("Could not load stores.");
+    }
+  };
+  useEffect(() => {
+    if (loggedIn) fetchStores();
+  }, [loggedIn]);
+
+  // — Store-form handlers —
   const handleStoreChange = (e) => {
     const { name, value } = e.target;
     setStoreData({ ...storeData, [name]: value });
     setStoreError("");
     setStoreSuccess(false);
   };
-
-  // Toggle category on/off
   const toggleCategory = (val) => {
     const cats = storeData.categories.includes(val)
       ? storeData.categories.filter((c) => c !== val)
@@ -73,12 +89,16 @@ function SuperAdminLogin() {
     setStoreError("");
     setStoreSuccess(false);
   };
-
-  // Store form submit → POST to backend
   const handleStoreSubmit = async (e) => {
     e.preventDefault();
-    const { name, description, categories, password } = storeData;
-    if (!name || !description || categories.length === 0 || !password) {
+    const { name, description, email, categories, password } = storeData;
+    if (
+      !name ||
+      !description ||
+      !email ||
+      categories.length === 0 ||
+      !password
+    ) {
       setStoreError("Please fill in all fields.");
       return;
     }
@@ -89,13 +109,21 @@ function SuperAdminLogin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(storeData),
       });
-      const text = await res.text();
-      console.log("Response status:", res.status, "Body:", text);
-      if (!res.ok) throw new Error(text || "Network response was not ok");
-
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || `Status ${res.status}`);
+      }
+      await res.json();
       setStoreSuccess(true);
       setStoreError("");
-      setStoreData({ name: "", description: "", categories: [], password: "" });
+      setStoreData({
+        name: "",
+        description: "",
+        email: "",
+        categories: [],
+        password: "",
+      });
+      fetchStores();
     } catch (err) {
       console.error("Store creation failed:", err);
       setStoreError("Failed to create store: " + err.message);
@@ -105,38 +133,68 @@ function SuperAdminLogin() {
   return (
     <Container className="mt-5">
       <Row className="justify-content-md-center">
-        <Col md={6}>
-          {loginError && <Alert variant="danger">{loginError}</Alert>}
-
-          {!loggedIn && (
-            <Form onSubmit={handleSubmit}>
-              <Form.Group className="mb-3">
-                <Form.Label>Username</Form.Label>
-                <Form.Control
-                  name="username"
-                  value={credentials.username}
-                  onChange={handleChange}
-                  placeholder="Enter username"
-                />
-              </Form.Group>
-              <Form.Group className="mb-3">
-                <Form.Label>Password</Form.Label>
-                <Form.Control
-                  type="password"
-                  name="password"
-                  value={credentials.password}
-                  onChange={handleChange}
-                  placeholder="Password"
-                />
-              </Form.Group>
-              <Button type="submit" className="w-100">
-                Log In
-              </Button>
-            </Form>
-          )}
-
-          {loggedIn && (
+        <Col md={8}>
+          {!loggedIn ? (
             <>
+              {loginError && <Alert variant="danger">{loginError}</Alert>}
+              <Form onSubmit={handleSubmit}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Username</Form.Label>
+                  <Form.Control
+                    name="username"
+                    value={credentials.username}
+                    onChange={handleChange}
+                    placeholder="Enter username"
+                  />
+                </Form.Group>
+                <Form.Group className="mb-3">
+                  <Form.Label>Password</Form.Label>
+                  <Form.Control
+                    type="password"
+                    name="password"
+                    value={credentials.password}
+                    onChange={handleChange}
+                    placeholder="Password"
+                  />
+                </Form.Group>
+                <Button type="submit" className="w-100">
+                  Log In
+                </Button>
+              </Form>
+            </>
+          ) : (
+            <>
+              <h4 className="mt-4">Available Stores</h4>
+              {storesError && <Alert variant="danger">{storesError}</Alert>}
+              {stores.length > 0 ? (
+                <Row xs={1} md={2} lg={3} className="g-4 mb-4">
+                  {stores.map((s) => (
+                    <Col key={s.id}>
+                      <Card>
+                        <Card.Body>
+                          <Card.Title>{s.name}</Card.Title>
+                          <Card.Text>{s.description}</Card.Text>
+                          <Card.Text>
+                            <strong>Email:</strong> {s.email}
+                          </Card.Text>
+                          <Card.Text>
+                            <strong>Categories:</strong>{" "}
+                            {s.categories.join(", ")}
+                          </Card.Text>
+                          <Card.Text>
+                            <small className="text-muted">
+                              Created: {new Date(s.createdAt).toLocaleString()}
+                            </small>
+                          </Card.Text>
+                        </Card.Body>
+                      </Card>
+                    </Col>
+                  ))}
+                </Row>
+              ) : (
+                <p>No stores available.</p>
+              )}
+
               <hr />
               <h4>Add a New Store</h4>
               {storeError && <Alert variant="danger">{storeError}</Alert>}
@@ -166,25 +224,31 @@ function SuperAdminLogin() {
                 </Form.Group>
 
                 <Form.Group className="mb-3">
+                  <Form.Label>Email</Form.Label>
+                  <Form.Control
+                    type="email"
+                    name="email"
+                    value={storeData.email}
+                    onChange={handleStoreChange}
+                    placeholder="Store contact email"
+                  />
+                </Form.Group>
+
+                <Form.Group className="mb-3">
                   <Form.Label>Categories</Form.Label>
-                  <ButtonGroup className="mb-2">
-                    {categoryOptions.map((opt, i) => (
-                      <ToggleButton
-                        key={i}
-                        id={`cat-${i}`}
+                  <div>
+                    {categoryOptions.map((opt) => (
+                      <Form.Check
+                        inline
+                        key={opt.value}
                         type="checkbox"
-                        variant={
-                          storeData.categories.includes(opt.value)
-                            ? "primary"
-                            : "outline-primary"
-                        }
+                        id={`cat-${opt.value}`}
+                        label={opt.label}
                         checked={storeData.categories.includes(opt.value)}
                         onChange={() => toggleCategory(opt.value)}
-                      >
-                        {opt.label}
-                      </ToggleButton>
+                      />
                     ))}
-                  </ButtonGroup>
+                  </div>
                 </Form.Group>
 
                 <Form.Group className="mb-3">
