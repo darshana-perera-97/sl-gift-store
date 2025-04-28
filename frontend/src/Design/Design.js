@@ -1,6 +1,7 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import SuperAdminLogin from "./Pages/SuperAdminLogin";
+import StoreLogin from "./Pages/StoreLogin";
 
 export default function Design() {
   return (
@@ -8,7 +9,8 @@ export default function Design() {
       {" "}
       <Routes>
         {/* Default to /login */}
-        <Route path="/" element={<SuperAdminLogin />} />
+        <Route path="/SuperAdminLogin" element={<SuperAdminLogin />} />
+        <Route path="/" element={<StoreLogin />} />
       </Routes>
     </div>
   );
